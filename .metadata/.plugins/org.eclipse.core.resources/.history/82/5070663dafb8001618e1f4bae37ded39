@@ -1,0 +1,104 @@
+package scrabble.data;
+
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Set;
+
+import scrabble.util.Permutation;
+import scrabble.util.PermutationUtilities;
+
+public class myWordList implements WordList {
+	Hashtable<String,Set> WList = new Hashtable<>();
+	Set<String> validWords = new HashSet<>();
+	
+	
+			public static void main (String[] args) throws IOException{
+					String scrabble ="uhcb";
+					myWordList myWordList = new myWordList();
+					myWordList.initFromFile("wordlists\\deutsch.txt");
+					myWordList.permutations(scrabble);
+					myWordList.addSubsToValid(scrabble);
+					for(String v : myWordList.validWords){
+					System.out.println(v);
+						}
+			}
+
+
+	@Override
+	public Set<String> permutations(String tileRackPart) {
+		Permutation perm = new Permutation(tileRackPart);
+		String normed = perm.getNormalized();
+		
+		if(WList.containsKey(normed)){
+			Set<String> loesung = WList.get(normed);
+			for(String s : loesung){
+				validWords.add(s);
+			}
+		}
+		else{}
+		return validWords;
+	}
+	
+	public void addSubsToValid(String perm){
+		Set<String> subStringsSet = PermutationUtilities.getSubSets(perm);
+		for(String s : subStringsSet){
+			permutations(s);
+		}
+		
+	}
+
+	@Override
+	public Set<String> words(String tileRack) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public boolean add(String word) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean addAll(Collection<String> words) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public int size() {
+		return  WList.size();
+	}
+
+	@Override
+	public WordList initFromFile(String fileName) throws FileNotFoundException,
+			IOException {
+		FileReader f = new FileReader(fileName);
+		BufferedReader r = new BufferedReader(f);
+		String word;
+		
+		do{
+			word = r.readLine();
+			Permutation p = new Permutation(word);
+			if(word!=null){
+				if(WList.containsKey(p.getNormalized())){
+					WList.get(p.getNormalized()).add(word);
+				}
+				else{Set<String> s = new HashSet<>();  
+					WList.put(p.getNormalized(),s);
+					WList.get(p.getNormalized()).add(word);
+					}
+			}
+		}while(word!=(null));
+		
+		r.close();
+		return null;
+	}
+
+}
