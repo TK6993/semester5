@@ -4,8 +4,6 @@ import java.awt.Point;
 import java.awt.Polygon;
 
 import java.util.ArrayList;
-import java.util.Random;
-
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.util.vector.Vector2f;
@@ -18,27 +16,28 @@ import lenz.htw.ai4g.ai.DriverAction;
 import lenz.htw.ai4g.ai.Info;
 
 public class AI_Class extends AI {
+	
 	int zielradi = 50;
-	float knotenverschiebungVonObs = 25;
-	Area areaAllerObs = new Area();
-	float gebrauchterWinkel;
-	float drehbeschleunigung;
-	float orientierung;
-	float orientZuObsMid;
-	float beschleunigung;
-	double wunschgeschwindigkeit= info.getMaxVelocity();
-	double wunschdrehgeschwindigkeit = info.getMaxAngularVelocity();
+	float nodedifferenceToObs = 25;
+	Area areaOfAllObs = new Area();
+	float neededAngle;
+	float rotationalAcceleration;
+	float orientation;
+	float orientToObsMiddle;
+	float acceleration;
+	double desiredSpeed= info.getMaxVelocity();
+	double desiredRotationalSpeed = info.getMaxAngularVelocity();
 	double distance;
 	double distanceToObsMid;
 	public Polygon[] obstacles = info.getTrack().getObstacles();
-	public ArrayList<Knoten> qKnoten;
-	public ArrayList<Knoten> fKnoten;
-	public Knoten route;
-	public Knoten absturzrettung;
-	private Knoten derZielKnoten;
+	public ArrayList<Node> qNodes;
+	public ArrayList<Node> fNodes;
+	public Node route;
+	public Node rescueNodes;
+	private Node destinyNode;
 	private boolean	searchingWay = true;
 	ArrayList<Integer> obstacleMidPoints;// 0 = x, 1 = y, 2= x, 3 = y....
-	public static ArrayList<Knoten> KNOTENPUNKTE = new ArrayList<>();
+	public static ArrayList<Node> NODEPOINTS = new ArrayList<>();
 	
 	
 	public AI_Class(Info info) {
@@ -62,7 +61,7 @@ public class AI_Class extends AI {
 		}
 		for(Polygon o : obstacles){
 			//if(!o.equals(obstacles[0]) && !o.equals(obstacles[1])){
-				areaAllerObs.add(new Area(o));
+				areaOfAllObs.add(new Area(o));
 				for(int i = 0; i< o.npoints; i++){
 					 int i2 = ((i+1)%(o.npoints));// i+1
 					 int i3 = ((i+2)%(o.npoints));// i+2
@@ -74,21 +73,21 @@ public class AI_Class extends AI {
 						Vector2f normalV2 = new Vector2f(v2.y,-v2.x);
 						Vector2f normal = new Vector2f((normalV1.getX()+normalV2.getX())/2 , (normalV1.getY()+normalV2.getY())/2 ); // durchschnitt der normalen von v1 und v2
 						normal.normalise();
-						normal.scale(knotenverschiebungVonObs);
+						normal.scale(nodedifferenceToObs);
 						Point neuerKnoten = new Point(o.xpoints[i2],o.ypoints[i2]);
 						neuerKnoten.translate((int)normal.x, (int)normal.y);
-						KNOTENPUNKTE.add(new Knoten(neuerKnoten));
+						NODEPOINTS.add(new Node(neuerKnoten));
 					}
 				}
 			//}
 		}
-		for(Knoten k : KNOTENPUNKTE){
-			findeRichtigeNachbarn(k);
+		for(Node k : NODEPOINTS){
+			findTheRightNeighbor(k);
 			}
-		for(Knoten k : KNOTENPUNKTE){
-			setKostenZuNachbarn(k);
+		for(Node k : NODEPOINTS){
+			setCostsToNeighbours(k);
 		}
-		derZielKnoten = findWay(new Point((int)info.getX(),(int)info.getY()));
+		destinyNode = findWay(new Point((int)info.getX(),(int)info.getY()));
 	}
 	
 
@@ -103,69 +102,70 @@ public class AI_Class extends AI {
 		// TODO Auto-generated method stub
 		return "KeO";
 	}
+	
 	@Override
 	public DriverAction update(boolean zurueck) {
 		double MeinX= info.getX();
 		double MeinY= info.getY();
-		if(derZielKnoten.getyWert()!=info.getCurrentCheckpoint().getY() && route.vorgangerK== null)
+		if(destinyNode.getyValue()!=info.getCurrentCheckpoint().getY() && route.predecessorgerNode== null)
 		{
 			if(searchingWay){
 				route = null;
 				searchingWay =false;
-				derZielKnoten = findWay(new Point((int)MeinX,(int)MeinY));
+				destinyNode = findWay(new Point((int)MeinX,(int)MeinY));
 			}
 		}
 		
 		if(route!=null){
-			double ZielX = route.getxWert();
-			double ZielY = route.getyWert();
-			if(istImBereich(MeinX, MeinY,ZielX,ZielY,10)&& route.vorgangerK != null){
-				route = route.vorgangerK;
+			double ZielX = route.getxValue();
+			double ZielY = route.getyValue();
+			if(istImBereich(MeinX, MeinY,ZielX,ZielY,10)&& route.predecessorgerNode != null){
+				route = route.predecessorgerNode;
 			}
 		
-			if(info.getVelocity().length()== 0){route = absturzrettung;}
+			if(info.getVelocity().length()== 0){route = rescueNodes;}
 			
-			distance = info.getCurrentCheckpoint().distance(route.getxWert(),route.getyWert(),MeinX, MeinY);
-			orientierung= info.getOrientation();
-			gebrauchterWinkel = (float) Math.atan2(ZielY-MeinY,ZielX-MeinX)-orientierung;
+			distance = Point.distance(route.getxValue(),route.getyValue(),MeinX, MeinY);
+			orientation = info.getOrientation();
+			neededAngle = (float) Math.atan2(ZielY-MeinY,ZielX-MeinX)-orientation;
 			
-			gebrauchterWinkel = winkelProblemfix(gebrauchterWinkel);
+			neededAngle = AngleProblemFix(neededAngle);
 			
 			//Arrive
-			if(distance < zielradi){wunschgeschwindigkeit = distance*info.getMaxVelocity()/zielradi;}
-			else{wunschgeschwindigkeit= info.getMaxVelocity();}
+			if(distance < zielradi){desiredSpeed = distance*info.getMaxVelocity()/zielradi;}
+			else{desiredSpeed= info.getMaxVelocity();}
 			
-			if(gebrauchterWinkel < 0.2){wunschdrehgeschwindigkeit= (float) ((gebrauchterWinkel*info.getMaxAngularVelocity())/0.2);}
-			else{wunschdrehgeschwindigkeit = info.getMaxAngularVelocity();}
+			if(neededAngle < 0.2){desiredRotationalSpeed= (float) ((neededAngle*info.getMaxAngularVelocity())/0.2);}
+			else{desiredRotationalSpeed = info.getMaxAngularVelocity();}
 	
 			//Matching
-			drehbeschleunigung = (float) ((wunschdrehgeschwindigkeit-info.getAngularVelocity()));
-			beschleunigung = (float) ((wunschgeschwindigkeit-info.getVelocity().length())/6);
+			rotationalAcceleration = (float) ((desiredRotationalSpeed-info.getAngularVelocity()));
+			acceleration = (float) ((desiredSpeed-info.getVelocity().length())/6);
 		}
 	
 		
 		//obstacleAvoid(MeinX, MeinY);
 		
 		
-		return new DriverAction(beschleunigung,drehbeschleunigung);
+		return new DriverAction(acceleration,rotationalAcceleration);
 	}
 	
-	public float winkelProblemfix( float winkel){
+	public float AngleProblemFix( float winkel){
 		if(winkel>Math.PI)winkel = (float) (winkel - 2* Math.PI);
 		if(winkel<-Math.PI)winkel= (float) (winkel + 2*Math.PI);
 		return winkel;
 	}
 	
 	public void obstacleAvoid( double meinX, double meinY){
-				for(int mid = 4; mid< obstacleMidPoints.size(); mid = mid+2){
-				orientZuObsMid = 	(float) (orientierung-Math.atan2(obstacleMidPoints.get(mid+1)-meinY,obstacleMidPoints.get(mid)-meinX));
-				orientZuObsMid = winkelProblemfix(orientZuObsMid);
-				distanceToObsMid = 	info.getCurrentCheckpoint().distance(obstacleMidPoints.get(mid), obstacleMidPoints.get(mid+1),meinX, meinY);
-				if(distanceToObsMid <140 && Math.abs(orientZuObsMid)<1.9 ){
-					drehbeschleunigung = (float) (((orientZuObsMid*info.getMaxAngularVelocity())-info.getAngularVelocity())/0.5);
-						beschleunigung = info.getMaxAcceleration()/2;
-					}
-				}
+		for(int mid = 4; mid< obstacleMidPoints.size(); mid = mid+2){
+			orientToObsMiddle = 	(float) (orientation-Math.atan2(obstacleMidPoints.get(mid+1)-meinY,obstacleMidPoints.get(mid)-meinX));
+			orientToObsMiddle = AngleProblemFix(orientToObsMiddle);
+			distanceToObsMid = 	Point.distance(obstacleMidPoints.get(mid), obstacleMidPoints.get(mid+1),meinX, meinY);
+			if(distanceToObsMid <140 && Math.abs(orientToObsMiddle)<1.9 ){
+					rotationalAcceleration = (float) (((orientToObsMiddle*info.getMaxAngularVelocity())-info.getAngularVelocity())/0.5);
+					acceleration = info.getMaxAcceleration()/2;
+			}
+		}
 	}
 
 	@Override
@@ -174,127 +174,119 @@ public class AI_Class extends AI {
 		return "/s0550635_KeomaTrippner/car.png";
 	}
 	
-	public Knoten findWay(Point myposition){
-		qKnoten = new ArrayList<>();
-		fKnoten = new ArrayList<>();
-		Knoten zielKnoten = new Knoten(info.getCurrentCheckpoint());
-		Knoten startKnoten = new Knoten(myposition);
-		fugeKnotenhinzu(startKnoten);
-		fugeKnotenhinzu(zielKnoten);
+	public Node findWay(Point myposition){
+		qNodes = new ArrayList<>();
+		fNodes = new ArrayList<>();
+		Node destinyNode = new Node(info.getCurrentCheckpoint());
+		Node startNode = new Node(myposition);
+		addNode(startNode);
+		addNode(destinyNode);
 
-		startKnoten.momentaneKosten = 0;
-		qKnoten.add(startKnoten);
+		startNode.currentCosts = 0;
+		qNodes.add(startNode);
 		
-		while(!qKnoten.isEmpty()){
+		while(!qNodes.isEmpty()){
 
-			Knoten v = qKnoten.remove(findKleinsteKostenInList(qKnoten));
-			for(Knoten n : v.getNachbarn()){
-				if(!fKnoten.contains(n)){
-					if(!qKnoten.contains(n)){
-						qKnoten.add(n);
-						n.momentaneKosten=Double.MAX_VALUE;
+			Node v = qNodes.remove(findSmallesCostsInList(qNodes));
+			for(Node n : v.getNeighbours()){
+				if(!fNodes.contains(n)){
+					if(!qNodes.contains(n)){
+						qNodes.add(n);
+						n.currentCosts=Double.MAX_VALUE;
 					}
-				if((v.momentaneKosten+v.nachbarnWegKosten.get(v.getNachbarn().indexOf(n)))< n.momentaneKosten){
-					n.momentaneKosten = v.momentaneKosten+v.nachbarnWegKosten.get(v.getNachbarn().indexOf(n));
-					n.vorgangerK = v;
+				if((v.currentCosts+v.neighbourWayCosts.get(v.getNeighbours().indexOf(n)))< n.currentCosts){
+					n.currentCosts = v.currentCosts+v.neighbourWayCosts.get(v.getNeighbours().indexOf(n));
+					n.predecessorgerNode = v;
 				}
 				}
 			}
-			fKnoten.add(v);
-			if(fKnoten.contains(zielKnoten))break;
+			fNodes.add(v);
+			if(fNodes.contains(destinyNode))break;
 		}
 
-		route = createRoute(zielKnoten).vorgangerK;
-		absturzrettung = route;
+		route = createRoute(destinyNode).predecessorgerNode;
+		rescueNodes = route;
 		searchingWay =true;
 
-		return zielKnoten;
+		return destinyNode;
 	}
 	
-	public Knoten createRoute(Knoten node){
-		 if (node == null || node.vorgangerK == null) {
+	public Node createRoute(Node node){
+		 if (node == null || node.predecessorgerNode == null) {
 	         return node;
 	     }
 
-	     Knoten remaining = createRoute(node.vorgangerK);
-	     node.vorgangerK.vorgangerK = node;
-	     node.vorgangerK = null;
+	     Node remaining = createRoute(node.predecessorgerNode);
+	     node.predecessorgerNode.predecessorgerNode = node;
+	     node.predecessorgerNode = null;
 	    return remaining;
 	 }
-	
-	private Knoten createRadomeRoute(Knoten k){
-		Knoten newRoute = k;
-		Random rand = new Random();
-		int randomNum = rand.nextInt(k.getNachbarn().size() - 1);
-		newRoute.vorgangerK = k.getNachbarn().get(randomNum);
-		return newRoute;
-	}
 		 
 	
 
 	
-	public void findeRichtigeNachbarn(Knoten k){
-		for(Knoten p : KNOTENPUNKTE){
+	public void findTheRightNeighbor(Node k){
+		for(Node p : NODEPOINTS){
 			if(!k.equals(p)){
 			Polygon poly = new Polygon();
-			poly.addPoint(k.getxWert()+27, k.getyWert()+27);
-			poly.addPoint(k.getxWert()-27, k.getyWert()-27);
-			poly.addPoint(p.getxWert()+27, p.getyWert()+27);
-			poly.addPoint(p.getxWert()-27, p.getyWert()-27);
+			poly.addPoint(k.getxValue()+27, k.getyValue()+27);
+			poly.addPoint(k.getxValue()-27, k.getyValue()-27);
+			poly.addPoint(p.getxValue()+27, p.getyValue()+27);
+			poly.addPoint(p.getxValue()-27, p.getyValue()-27);
 
 			Area area = new Area(poly);
-					area.intersect(areaAllerObs);
+					area.intersect(areaOfAllObs);
 					if(area.isEmpty()){
-						k.getNachbarn().add(p);}
+						k.getNeighbours().add(p);}
 			}
 			}
 	}
 	
-	public void setKostenZuNachbarn(Knoten k){
-		for(int i = 0; i<k.getNachbarn().size();i++){
-			double kosten = info.getCurrentCheckpoint().distance(k.getxWert(), k.getyWert(),k.getNachbarn().get(i).getxWert(), k.getNachbarn().get(i).getyWert());
-			k.nachbarnWegKosten.add(kosten);
+	public void setCostsToNeighbours(Node k){
+		for(int i = 0; i<k.getNeighbours().size();i++){
+			double kosten = Point.distance(k.getxValue(), k.getyValue(),k.getNeighbours().get(i).getxValue(), k.getNeighbours().get(i).getyValue());
+			k.neighbourWayCosts.add(kosten);
 		}
 	}
-	public void setMomentaneKostenZuNachbarn(Knoten start){
-		for(Knoten k : qKnoten){
-			if(start.getNachbarn().contains(k)){
-				k.momentaneKosten=start.nachbarnWegKosten.get(start.getNachbarn().indexOf(k));
+	public void setcurrentCostsToNeighbours(Node start){
+		for(Node k : qNodes){
+			if(start.getNeighbours().contains(k)){
+				k.currentCosts=start.neighbourWayCosts.get(start.getNeighbours().indexOf(k));
 			}
 		}
 	}
 	
 	
-	public int findKleinsteKostenInList(ArrayList<Knoten> q){
+	public int findSmallesCostsInList(ArrayList<Node> q){
 		double minKosten = Double.MAX_VALUE;
 		int guenstigsterIndex= -1;
 		for(int k = 0; k<q.size();k++){
-			if(q.get(k).momentaneKosten<=minKosten){
-				minKosten = q.get(k).momentaneKosten;
+			if(q.get(k).currentCosts<=minKosten){
+				minKosten = q.get(k).currentCosts;
 				guenstigsterIndex = k;
 			}
 		}
 		return guenstigsterIndex;
 	}
 	
-	private void fugeKnotenhinzu(Knoten k){
+	private void addNode(Node k){
 		
-		KNOTENPUNKTE.add(k);
-		for(Knoten p : KNOTENPUNKTE){
+		NODEPOINTS.add(k);
+		for(Node p : NODEPOINTS){
 			if(!k.equals(p)){
 			Polygon poly = new Polygon();
-			poly.addPoint(k.getxWert()+7, k.getyWert()+7);
-			poly.addPoint(k.getxWert()-7, k.getyWert()-7);
-			poly.addPoint(p.getxWert()+7, p.getyWert()+7);
-			poly.addPoint(p.getxWert()-7, p.getyWert()-7);
+			poly.addPoint(k.getxValue()+7, k.getyValue()+7);
+			poly.addPoint(k.getxValue()-7, k.getyValue()-7);
+			poly.addPoint(p.getxValue()+7, p.getyValue()+7);
+			poly.addPoint(p.getxValue()-7, p.getyValue()-7);
 			Area area = new Area(poly);
-					area.intersect(areaAllerObs);
+					area.intersect(areaOfAllObs);
 					if(area.isEmpty()){
-						double kosten = info.getCurrentCheckpoint().distance(k.getxWert(), k.getyWert(),p.getxWert(), p.getyWert());
-						k.getNachbarn().add(p);
-						k.nachbarnWegKosten.add(kosten);
-						p.getNachbarn().add(k);
-						p.nachbarnWegKosten.add(kosten);
+						double kosten = Point.distance(k.getxValue(), k.getyValue(),p.getxValue(), p.getyValue());
+						k.getNeighbours().add(p);
+						k.neighbourWayCosts.add(kosten);
+						p.getNeighbours().add(k);
+						p.neighbourWayCosts.add(kosten);
 					}
 			}}
 	}
@@ -310,10 +302,10 @@ public class AI_Class extends AI {
 	public void doDebugStuff() {
 		
 		GL11.glBegin(GL11.GL_LINES);
-		for(int k = 0; k<KNOTENPUNKTE.size();k++){ 
-			for(Knoten p : KNOTENPUNKTE.get(k).getNachbarn()){
-				GL11.glVertex2i(KNOTENPUNKTE.get(k).getxWert(),KNOTENPUNKTE.get(k).getyWert());
-				GL11.glVertex2i(p.getxWert(),p.getyWert());
+		for(int k = 0; k<NODEPOINTS.size();k++){ 
+			for(Node p : NODEPOINTS.get(k).getNeighbours()){
+				GL11.glVertex2i(NODEPOINTS.get(k).getxValue(),NODEPOINTS.get(k).getyValue());
+				GL11.glVertex2i(p.getxValue(),p.getyValue());
 
 			}
 		}

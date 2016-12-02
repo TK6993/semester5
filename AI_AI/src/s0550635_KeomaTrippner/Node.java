@@ -1,0 +1,78 @@
+package s0550635_KeomaTrippner;
+
+import java.awt.Point;
+import java.util.ArrayList;
+
+public class Node  {
+	
+	private ArrayList<Node> neighbours;	
+	public double currentCosts;
+	public ArrayList<Double> neighbourWayCosts;
+	public Node predecessorgerNode;
+	private int xValue;
+	private int yValue;
+	
+	private Point position;
+
+
+	public Node(Point point){
+		neighbours = new ArrayList<>();
+		neighbourWayCosts = new ArrayList<>();
+		xValue = point.x;
+		yValue = point.y;
+		position = point;
+	
+		
+	}
+	
+	/*public Knoten getGuenstigsterNachbarKnoten(){
+		int indexZahl=-1;
+		double kleinsterKosten=Double.MAX_VALUE;
+		for(int i = 0; i<nachbarnWegKosten.length;i++){
+			if(nachbarnWegKosten[i]<kleinsterKosten){
+				indexZahl = i;
+				kleinsterKosten = nachbarnWegKosten[i];
+			}	
+		}
+		return nachbarn.get(indexZahl);
+	}*/
+	
+
+	public ArrayList<Node> getNeighbours() {
+		return neighbours;
+	}
+
+	public void setNeighbours(ArrayList<Node> nachbarn) {
+		this.neighbours = nachbarn;
+	}
+
+
+	public int getxValue() {
+		return xValue;
+	}
+
+	public void setxValue(int xValue) {
+		this.xValue = xValue;
+	}
+
+
+	public int getyValue() {
+		return yValue;
+	}
+
+
+	public void setyValue(int yWert) {
+		this.yValue = yWert;
+	}
+
+
+	public Point getPosition() {
+		return position;
+	}
+
+
+	public void setPosition(Point position) {
+		this.position = position;
+	}
+
+}
